@@ -32,7 +32,7 @@ yarn config set electron_builder_binaries_mirror https://npmmirror.com/mirrors/e
 
 
 # 环境
-1. node 版本 16.19.0
+1. node 版本 24.14.0
 2. electron 版本 25.0.1
 
 # 克隆项目

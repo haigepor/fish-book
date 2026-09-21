@@ -29,7 +29,7 @@ ipcMain.handle('read-file-total-words', async (event, fileName) => {
         return null;
     }
 });
-ipcMain.handle('open-books-folder', async event => {
+ipcMain.handle('open-books-folder', async () => {
     const filePath = path.join(__dirname, '../books');
     try {
         shell.openPath(filePath);

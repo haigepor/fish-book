@@ -1,4 +1,5 @@
 'use strict';
+/* global __static */
 
 const { app, BrowserWindow, Tray, Menu, ipcMain, screen } = require('electron');
 import { createProtocol } from 'vue-cli-plugin-electron-builder/lib';
@@ -124,7 +125,7 @@ function createReadWindow() {
         // console.log('子窗口被关闭了');
     });
 
-    readWindow.hookWindowMessage(278, function (e) {
+    readWindow.hookWindowMessage(278, function () {
         readWindow.setEnabled(false); //窗口禁用
         setTimeout(() => {
             readWindow.setEnabled(true); //窗口启用
@@ -136,7 +137,7 @@ function createReadWindow() {
     registerShortcuts(readWindow);
 }
 // 监听从渲染进程发送的消息
-ipcMain.on('readFiles', async (event, data) => {
+ipcMain.on('readFiles', async event => {
     try {
         // 读取文件夹中所有文件
         const files = await fs.promises.readdir(FOLDER_PATH);
@@ -206,7 +207,7 @@ ipcMain.handle('getSysConfig', (event, key) => {
 ipcMain.handle('setSysConfig', (event, key, val) => {
     sysConfigStore.set(key, val);
 });
-ipcMain.handle('deleteSysConfig', (event, key, val) => {
+ipcMain.handle('deleteSysConfig', (event, key) => {
     sysConfigStore.delete(key);
 });
 
@@ -225,7 +226,7 @@ const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
     app.quit();
 } else {
-    app.on('second-instance', (event, commandLine, workingDirectory) => {
+    app.on('second-instance', () => {
         if (mainWindow) {
             if (mainWindow.isMinimized()) mainWindow.restore();
             mainWindow.show();

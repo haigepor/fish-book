@@ -8,7 +8,7 @@ async function readFile(filePath, { start = 0, end = Infinity } = {}, encoding =
     const { encoding: detectedEncoding } = jschardet.detect(buffer);
     const content = iconv.decode(buffer, detectedEncoding || encoding);
 
-    return content.slice(0, 5);
+    return content.slice(start, end);
 }
 
 // 读取文件的二进制数据
