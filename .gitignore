@@ -1,0 +1,26 @@
+node_modules/
+.yarn-cache/
+
+# 前端与桌面构建产物
+app-dist/
+release/
+dist/
+dist_electron/
+dist-node24-verify/
+
+# 浏览器回归与设计审查产物
+.playwright-mcp/
+design-audit/
+coverage/
+
+# 本地书库只保留仓库自带的说明文档
+books/*
+!books/说明文档.txt
+
+# 本地环境与日志
+.env
+.env.*
+*.log
+yarn-error.log
+.DS_Store
+Thumbs.db
