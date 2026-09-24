@@ -2,8 +2,15 @@
     "appId": "com.fish-book.app",
     "productName": "fish-book",
     "directories": {
-        "output": "dist"
+        "output": "release"
     },
+    "files": [
+        "app-dist/**/*",
+        "electron/**/*",
+        "books/**/*",
+        "public/images/**/*",
+        "package.json"
+    ],
     "win": {
         "icon": "public/app-icon.ico"
     }

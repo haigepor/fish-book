@@ -1,0 +1,16 @@
+// 产品插画使用语义色，亮暗主题共用同一套轮廓；装饰不进入辅助技术阅读顺序。
+export function AmbientArt({ settings = false }) {
+  return <div className="ambient-art" aria-hidden="true"><svg viewBox="0 0 600 320" fill="none"><g stroke="currentColor" strokeWidth="1.5"><path d="M70 260Q170 160 310 215T650 135M90 280Q190 180 320 235T650 155M130 310Q230 210 350 265T660 185" />{settings ? <><path d="M370 -35L465 -8V155L419 113L370 131Z"/><path d="M270 38L344 59V166L304 141L270 147Z"/></> : <><path d="M250 95Q340 6 440 95Q340 179 250 95ZM440 95L507 46V145Z"/><circle cx="283" cy="86" r="5"/><path d="M327 43V144M344 48V138M520 172Q552 146 580 172Q552 201 520 172ZM580 172L601 153V190Z"/></>}</g></svg></div>;
+}
+export function FishMark({ className = '' }) {
+  return <svg className={className} viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M9 24C17 10 30 10 37 24C30 38 17 38 9 24Z" fill="currentColor" opacity=".15"/><path d="M9 24C17 10 30 10 37 24C30 38 17 38 9 24ZM37 24L44 17V31L37 24ZM23 16V32M14 21L20 19M14 26L20 24M27 19L31 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><circle cx="13" cy="24" r="1.3" fill="currentColor"/></svg>;
+}
+
+export function ReadingArt({ className = '' }) {
+  return <svg className={`reading-art ${className}`} viewBox="0 0 280 150" fill="none" aria-hidden="true"><ellipse cx="145" cy="125" rx="99" ry="10" fill="currentColor" opacity=".06"/><path d="M49 106Q86 85 138 109Q188 82 231 100L224 119Q181 103 137 126Q89 107 49 121Z" fill="var(--card)" stroke="currentColor" strokeWidth="1.5"/><path d="M54 50Q94 40 138 70Q183 40 226 50L231 100Q184 91 138 116Q93 92 49 106Z" fill="var(--card)" stroke="currentColor" strokeWidth="1.5"/><path d="M138 70V116M65 64Q94 60 122 78M64 76Q90 72 122 89M62 89Q92 85 122 101M155 80Q184 62 215 64M155 92Q188 74 217 77M175 94Q197 85 219 89" stroke="currentColor" strokeWidth="1.4" opacity=".45"/><path d="M173 58V85L181 77L188 80V51" fill="var(--art-accent)"/><path d="M97 29Q118 7 140 29Q118 49 97 29ZM140 29L154 18V40Z" stroke="currentColor" strokeWidth="1.7" fill="var(--secondary)" strokeLinejoin="round"/><circle cx="107" cy="27" r="1.8" fill="currentColor"/><path d="M38 39Q50 31 63 38M203 28Q216 20 231 27M24 81Q32 76 39 79" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity=".4"/><circle cx="78" cy="23" r="3" stroke="var(--art-accent)"/><circle cx="244" cy="64" r="2" fill="var(--art-accent)"/></svg>;
+}
+
+export function BookCover({ name, bookmarked }) {
+  const seed = Array.from(name).reduce((sum, char) => (sum * 31 + char.codePointAt(0)) >>> 0, 0);
+  return <svg className={`book-cover cover-${seed % 3}`} viewBox="0 0 240 104" fill="none" aria-hidden="true"><rect width="240" height="104" fill="currentColor" opacity=".07"/><path d="M10 0V104M14 0V104" stroke="currentColor" opacity=".25"/><circle cx={170 + seed % 24} cy="44" r="32" stroke="currentColor" opacity=".3"/><path d={`M45 104Q85 ${10 + seed % 35} 132 77T245 41M40 115Q94 43 140 89T246 61`} stroke="currentColor" strokeWidth="1.4" opacity=".45"/><path d="M187 0H213V44L200 35L187 44Z" fill={bookmarked ? 'var(--art-accent)' : 'none'} stroke="var(--art-accent)" strokeWidth="1.5"/><path d="M192 3V33M208 3V33" stroke="var(--art-accent)" opacity=".45"/><text x="29" y="29" fill="currentColor" fontSize="9" letterSpacing="3">LOCAL EDITION</text></svg>;
+}
