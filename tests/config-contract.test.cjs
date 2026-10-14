@@ -3,6 +3,15 @@ const assert = require('node:assert/strict');
 
 const { DEFAULT_CONFIG, normalizeConfig } = require('../electron/config-contract.cjs');
 
+test('persists binding and manual visibility without accepting malformed target identities', () => {
+  const binding = { mode: 'window', appPath: 'C:\\Apps\\Editor.exe', hwnd: '123', pid: 8, startedAt: '456', title: '文档' };
+  const config = normalizeConfig(JSON.parse(JSON.stringify({ readerBinding: binding, readerRequested: false })));
+  assert.deepEqual(config.readerBinding, binding);
+  assert.equal(config.readerRequested, false);
+  assert.equal(normalizeConfig({ readerBinding: { mode: 'window' }, readerRequested: 'true' }).readerBinding, null);
+  assert.equal(normalizeConfig({ readerRequested: 'true' }).readerRequested, false);
+});
+
 test('reader palette stays independent from the application theme', () => {
   assert.equal(normalizeConfig({ readerColorMode: 'invalid' }).readerColorMode, 'custom');
   assert.equal(normalizeConfig().readerColorMode, 'custom');

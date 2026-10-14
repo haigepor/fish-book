@@ -1,4 +1,7 @@
+const { normalizeBinding } = require('./reader-binding.cjs');
 const DEFAULT_CONFIG = Object.freeze({
+  readerBinding: null,
+  readerRequested: false,
   theme: 'white',
   readerColorMode: 'custom',
   readerBackgroundEffect: 'glass',
@@ -52,6 +55,8 @@ function clamp(value, min, max, fallback) {
 
 function normalizeConfig(value = {}) {
   const config = { ...DEFAULT_CONFIG, ...value };
+  config.readerBinding = normalizeBinding(config.readerBinding);
+  config.readerRequested = config.readerRequested === true;
   config.theme = ['white', 'dark', 'system'].includes(config.theme) ? config.theme : DEFAULT_CONFIG.theme;
   // 阅读器拥有独立配色，主界面的明暗主题不能改变悬浮阅读窗口。
   config.readerColorMode = 'custom';

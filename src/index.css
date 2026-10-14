@@ -334,6 +334,15 @@ body { min-width: 320px; background: var(--background); color: var(--foreground)
 .reader-surface > .edge-se { bottom: 0; right: 0; } .reader-surface > .edge-sw { bottom: 0; left: 0; }
 .reader-surface.is-clean .reader-resize { display: none; }
 .reader-advanced { margin: 20px 0; }
+.reader-binding { margin: 20px 0 24px; padding-bottom: 24px; border-bottom: 1px solid var(--border); }
+.binding-heading { display: flex; align-items: center; gap: 8px; color: var(--foreground); }
+.binding-heading h3 { font-size: 14px; }
+.binding-current, .binding-state { padding: 12px; margin: 12px 0; border: 1px solid var(--border); border-radius: 8px; background: var(--background); font-size: 12px; }
+.binding-current { display: grid; gap: 5px; }
+.binding-current small { color: var(--muted-foreground); overflow-wrap: anywhere; }
+.binding-current p { color: var(--primary); font-size: 11px; }
+.binding-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.reader-binding select { min-width: 0; width: 100%; text-overflow: ellipsis; }
 .reader-advanced summary { cursor: pointer; color: var(--muted-foreground); font-size: 12px; }
 .preview-paper { box-shadow: none; min-height: 90px; }
 .preview-foot { display: none; }

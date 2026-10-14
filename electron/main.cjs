@@ -6,6 +6,8 @@ const jschardet = require('jschardet');
 const iconv = require('iconv-lite');
 const { DEFAULT_CONFIG, normalizeConfig } = require('./config-contract.cjs');
 const { readerGestureBounds } = require('./reader-window.cjs');
+const { normalizeBinding, sameWindow, visibilityDecision } = require('./reader-binding.cjs');
+const { createWindowMonitor } = require('./window-monitor.cjs');
 
 const isDev = Boolean(process.env.ELECTRON_RENDERER_URL);
 const rendererUrl = process.env.ELECTRON_RENDERER_URL || null;
@@ -17,6 +19,70 @@ let boundsTimer;
 let applyingBounds = false;
 let readerGesture = null;
 let shortcutErrors = [];
+let bindingStatus = { reason: 'manual-hidden', supported: process.platform === 'win32', error: '' };
+let windowSnapshot = null;
+let bindingHost = null;
+let trackedHwnd = '';
+const windowMonitor = createWindowMonitor({
+  // PowerShell 不能读取 ASAR 虚拟路径，安装版从明确解包的原生资源目录启动。
+  scriptPath: app.isPackaged ? path.join(process.resourcesPath, 'app.asar.unpacked', 'electron', 'native', 'window-monitor.ps1') : path.join(__dirname, 'native', 'window-monitor.ps1'),
+  onSnapshot(snapshot) {
+    windowSnapshot = snapshot;
+    const binding = normalizeConfig(store.store).readerBinding;
+    let invalidated = false;
+    // 只在宿主查询已完成时作失效判断，避免监听启动的首个空快照误伤绑定。
+    if (binding?.mode === 'window' && !binding.invalidated && snapshot.trackedHwnd === binding.hwnd && !sameWindow(binding, snapshot.target)) {
+      store.set('readerBinding', { ...binding, invalidated: true });
+      invalidated = true;
+    }
+    reconcileReaderVisibility();
+    if (invalidated) notifyConfig();
+  },
+  onUnavailable(error) { windowSnapshot = null; reconcileReaderVisibility(error.message); },
+});
+
+function readerHandle() {
+  if (!readWindow || readWindow.isDestroyed()) return '';
+  const buffer = readWindow.getNativeWindowHandle();
+  return buffer.length === 8 ? buffer.readBigUInt64LE().toString() : String(buffer.readUInt32LE());
+}
+
+function reconcileReaderVisibility(error = '') {
+  const config = normalizeConfig(store.store);
+  const hwnd = readerHandle();
+  const visible = Boolean(readWindow?.isVisible());
+  // 点击阅读器可能早于辅助进程处理新的宿主查询；仅保留已显示窗口，下一份查询结果立即校验。
+  const snapshot = windowSnapshot?.foreground?.hwnd === hwnd && visible && bindingHost && windowSnapshot.trackedHwnd !== trackedHwnd
+    ? { ...windowSnapshot, target: bindingHost } : windowSnapshot;
+  const decision = visibilityDecision(config, snapshot, { available: windowMonitor.ready, readerHwnd: hwnd, visible, host: bindingHost });
+  if (decision.host) {
+    bindingHost = decision.host;
+    const hwnd = config.readerBinding.mode === 'window' ? config.readerBinding.hwnd : bindingHost.hwnd;
+    if (trackedHwnd !== hwnd) { trackedHwnd = hwnd; windowMonitor.track(hwnd); }
+  }
+  if (readWindow && !readWindow.isDestroyed()) {
+    readWindow.setAlwaysOnTop(config.readerBinding ? decision.visible : config.alwaysOnTop);
+    if (decision.visible && !readWindow.isVisible()) readWindow.showInactive();
+    if (!decision.visible && readWindow.isVisible()) { readerGesture = null; readWindow.hide(); }
+  }
+  const next = { supported: process.platform === 'win32', reason: decision.reason, error: error || (decision.reason === 'unavailable' ? bindingStatus.error : '') };
+  if (JSON.stringify(next) !== JSON.stringify(bindingStatus)) { bindingStatus = next; notifyConfig(); }
+}
+
+function setReaderRequested(value) {
+  store.set('readerRequested', value);
+  reconcileReaderVisibility();
+  notifyConfig();
+}
+
+function startBindingMonitor() {
+  const binding = normalizeConfig(store.store).readerBinding;
+  bindingHost = null; windowSnapshot = null;
+  trackedHwnd = binding?.mode === 'window' ? binding.hwnd : '';
+  windowMonitor.track(trackedHwnd);
+  if (binding) windowMonitor.start().then(() => windowMonitor.refresh()).catch(() => {});
+  reconcileReaderVisibility();
+}
 // CommonJS 可由 Electron 25 从 ASAR 中直接加载；ESM 动态导入在该路径下会误报模块不存在。
 const bookParser = Promise.resolve(require('./book-parser.cjs'));
 const parsedBooks = new Map();
@@ -143,7 +209,7 @@ function applyReaderSettings(config, restorePosition = false) {
     // 背景和文字分别在渲染层控制透明度，不能再衰减整个窗口。
     readWindow.setOpacity(1);
     readWindow.setResizable(false);
-    readWindow.setAlwaysOnTop(config.alwaysOnTop);
+    readWindow.setAlwaysOnTop(config.readerBinding ? false : config.alwaysOnTop);
     if (process.platform === 'win32' && typeof readWindow.setBackgroundMaterial === 'function') {
       try { readWindow.setBackgroundMaterial(config.readerBackgroundEffect === 'glass' ? 'acrylic' : 'none'); }
       catch { /* 较旧的 Windows 会忽略系统材质，渲染层仍提供毛玻璃回退。 */ }
@@ -160,7 +226,7 @@ function registerShortcuts(config) {
         // 退出清屏只同步阅读状态，不创建、显隐或销毁窗口，也不改变阅读进度。
         if (action === 'exit-clean') { store.set('cleanMode', false); notifyConfig(); return; }
         if (!readWindow) createReadWindow();
-        if (action === 'toggle') readWindow.isVisible() ? readWindow.hide() : readWindow.show();
+        if (action === 'toggle') setReaderRequested(!store.get('readerRequested'));
         else readWindow.webContents.send('reader:command', action);
       });
       if (!ok) shortcutErrors.push(`${config[key]} 已被占用，请更换快捷键`);
@@ -193,21 +259,45 @@ async function readBookDetails(fileName) {
 }
 
 function notifyConfig() {
-  const config = { ...normalizeConfig(store.store), shortcutErrors };
+  const config = { ...normalizeConfig(store.store), shortcutErrors, bindingStatus };
   mainWindow?.webContents.send('config:changed', config);
   readWindow?.webContents.send('config:changed', config);
 }
 
-ipcMain.handle('config:get', event => { requireTrustedSender(event); return { ...normalizeConfig(store.store), shortcutErrors }; });
+ipcMain.handle('config:get', event => { requireTrustedSender(event); return { ...normalizeConfig(store.store), shortcutErrors, bindingStatus }; });
 ipcMain.handle('config:set', (event, key, value) => {
   requireTrustedSender(event);
+  if (['readerBinding', 'readerRequested'].includes(key)) throw new Error('请通过阅读器绑定或显隐操作修改此设置');
   if (!Object.hasOwn(DEFAULT_CONFIG, key) && key !== 'books_folder_path') throw new Error('Unknown configuration key.');
   const config = normalizeConfig({ ...store.store, [key]: value });
   store.set(key, config[key]);
   if (['readerWidth', 'readerHeight', 'bgOpacity', 'readerBackgroundEffect', 'resizable', 'alwaysOnTop'].includes(key)) applyReaderSettings(config);
+  reconcileReaderVisibility();
   if (['key1', 'key2', 'key3', 'key4'].includes(key)) registerShortcuts(config);
   notifyConfig();
-  return { ...config, shortcutErrors };
+  return { ...config, shortcutErrors, bindingStatus };
+});
+ipcMain.handle('reader:windows', async event => {
+  requireTrustedSender(event);
+  return windowMonitor.list();
+});
+ipcMain.handle('reader:bind', async (event, mode, hwnd) => {
+  requireTrustedSender(event);
+  if (!['app', 'window'].includes(mode) || typeof hwnd !== 'string') throw new Error('请选择绑定方式和目标窗口');
+  // 重新从系统查询目标，不能信任渲染层传入的程序路径、PID 或句柄身份。
+  const target = (await windowMonitor.list()).find(item => item.hwnd === hwnd);
+  const binding = target && normalizeBinding({ ...target, mode });
+  if (!binding) throw new Error('目标窗口已关闭或无法访问，请刷新后重选');
+  store.set({ readerBinding: binding, readerRequested: true });
+  startBindingMonitor(); notifyConfig();
+  return { ...normalizeConfig(store.store), shortcutErrors, bindingStatus };
+});
+ipcMain.handle('reader:unbind', event => {
+  requireTrustedSender(event);
+  store.set('readerBinding', null);
+  bindingHost = null; reconcileReaderVisibility(); notifyConfig();
+  windowMonitor.stop();
+  return { ...normalizeConfig(store.store), shortcutErrors, bindingStatus };
 });
 ipcMain.handle('books:import', async event => {
   requireTrustedSender(event);
@@ -290,9 +380,9 @@ ipcMain.handle('window:action', (event, action) => {
 ipcMain.handle('reader:show', event => {
   requireTrustedSender(event);
   if (!readWindow) createReadWindow();
-  readWindow.show();
+  setReaderRequested(true);
 });
-ipcMain.handle('reader:hide', event => { requireTrustedSender(event); readerGesture = null; readWindow?.hide(); });
+ipcMain.handle('reader:hide', event => { requireTrustedSender(event); readerGesture = null; setReaderRequested(false); });
 ipcMain.on('reader:gesture-start', (event, edge, point) => {
   requireTrustedSender(event);
   if (!readWindow || BrowserWindow.fromWebContents(event.sender) !== readWindow) return;
@@ -319,7 +409,7 @@ ipcMain.handle('reader:reset-position', event => {
   const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
   const bounds = readWindow.getBounds();
   readWindow.setPosition(Math.round(area.x + (area.width - bounds.width) / 2), area.y + 60);
-  readWindow.show();
+  setReaderRequested(true);
 });
 ipcMain.handle('external:open', (event, url) => {
   requireTrustedSender(event);
@@ -331,8 +421,9 @@ ipcMain.handle('external:open', (event, url) => {
 app.whenReady().then(() => {
   createWindow();
   createReadWindow();
+  startBindingMonitor();
   registerShortcuts(normalizeConfig(store.store));
   app.on('activate', () => { if (!mainWindow) createWindow(); });
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
-app.on('will-quit', () => { globalShortcut.unregisterAll(); clearTimeout(boundsTimer); readerGesture = null; });
+app.on('will-quit', () => { globalShortcut.unregisterAll(); clearTimeout(boundsTimer); readerGesture = null; windowMonitor.stop(); });

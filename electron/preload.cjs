@@ -2,6 +2,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('fishBook', {
   platform: 'electron',
+  listReaderWindows: () => ipcRenderer.invoke('reader:windows'),
+  bindReader: (mode, hwnd) => ipcRenderer.invoke('reader:bind', mode, hwnd),
+  unbindReader: () => ipcRenderer.invoke('reader:unbind'),
   getBookDetails: name => ipcRenderer.invoke('books:details', name),
   updateBook: (name, patch) => ipcRenderer.invoke('books:update', name, patch),
   importBooks: () => ipcRenderer.invoke('books:import'),

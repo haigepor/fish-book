@@ -7,9 +7,12 @@
     "files": [
         "app-dist/**/*",
         "electron/**/*",
-        "books/**/*",
+        "books/说明文档.txt",
         "public/images/**/*",
         "package.json"
+    ],
+    "asarUnpack": [
+        "electron/native/**/*"
     ],
     "win": {
         "icon": "public/app-icon.ico"

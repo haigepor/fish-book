@@ -6,9 +6,9 @@ const vm = require('node:vm');
 // 执行实际快捷键注册逻辑，仅替换 Electron 窗口和系统快捷键边界。
 const source = fs.readFileSync(require.resolve('../electron/main.cjs'), 'utf8');
 const registerSource = source.slice(source.indexOf('function registerShortcuts('), source.indexOf('async function readBook('));
-function harness(reader) {
+function harness(reader, initial = {}) {
   const callbacks = new Map();
-  const state = { cleanMode: true, start: 218, currentBookName: 'test.txt' };
+  const state = { cleanMode: true, start: 218, currentBookName: 'test.txt', ...initial };
   let notifications = 0;
   let created = 0;
   const context = vm.createContext({
@@ -16,10 +16,11 @@ function harness(reader) {
     createReadWindow() { created += 1; },
     store: { get: key => state[key], set: (key, value) => { state[key] = value; } },
     notifyConfig() { notifications += 1; },
+    setReaderRequested(value) { state.readerRequested = value; },
     globalShortcut: { unregisterAll() {}, register(key, callback) { callbacks.set(key, callback); return true; } },
   });
   vm.runInContext(`${registerSource}\nregisterShortcuts({ key1: 'Alt+Z', key2: 'Alt+C', key3: 'Alt+V', key4: 'Alt+Q' });`, context);
-  return { state, exit: () => callbacks.get('Alt+Q')(), created: () => created, notifications: () => notifications };
+  return { state, exit: () => callbacks.get('Alt+Q')(), toggle: () => callbacks.get('Alt+V')(), created: () => created, notifications: () => notifications };
 }
 
 test('exit clean mode without a reader only changes state and never creates a window', () => {
@@ -38,4 +39,13 @@ test('exit clean mode preserves an existing window and reading position, includi
   assert.equal(app.state.cleanMode, false);
   assert.equal(app.state.start, 218);
   assert.equal(app.created(), 0);
+});
+
+test('toggle changes manual intent rather than treating auto-hidden state as manually hidden', () => {
+  const app = harness({ isVisible: () => false }, { readerRequested: true });
+  app.toggle();
+  assert.equal(app.state.readerRequested, false);
+  app.toggle();
+  assert.equal(app.state.readerRequested, true);
+  assert.equal(app.state.start, 218);
 });
